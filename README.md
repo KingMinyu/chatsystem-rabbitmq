@@ -15,3 +15,8 @@
 + Redis
 + RebbitMQ
 + AWS EC2
+
+******************************************************
+### 사용하려면..
+- application.properties 혹은 yaml 파일에 Redis, RabbitMQ host, port, id, password를 명시 해야 함
+  - 개발 시 나는 localhost를 이용 하다가 배포 전에 EC2에 RabbitMQ와 Redis를 설치 하고 외부 접속을 허용 했었다.
