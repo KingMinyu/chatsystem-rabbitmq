@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>WebSocket Chat</title>
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+</head>
+<body>
+    <div id="chat-content"></div>
+    <br>
+    <form id="message-form" th:object="${messageForm}">
+        <label for="message">Message:</label>
+        <input type="text" id="message" placeholder="Type your message..." th:field="*{content}">
+        <button type="button" onclick="sendMessage2()">Send</button>
+        <br><button type="button" id="newRoom">상담 시작!</button>
+        <!--<button type="button" onclick="sendMessage2()">send2</button>-->
+        <button id="closeChatButton">채팅 종료하기</button>
+    </form>
+	
+    <script>
+        var stompClient = null;
+		var roomId =generateRandomString();
+        function setConnected(connected) {
+            if (connected) {
+                $("#chat-content").append("<p>webSocket Connected</p>");
+            } else {
+                $("#chat-content").append("<p>webSocket Disconnected</p>");
+            }
+        }
+
+        function connect() {
+            var socket = new SockJS('/websocket-chat');
+            stompClient = Stomp.over(socket);
+
+            stompClient.connect({}, function (frame) {
+                setConnected(true);
+            });
+        }
+        function disconnect() {
+            if (stompClient !== null) {
+                stompClient.disconnect();
+            }
+            setConnected(false);
+        }
+
+        function sendMessage() {
+            stompClient.send("/app/chat", {}, JSON.stringify({'content': $("#message").val(), 'sender' :"고객"}));
+            $("#message").val("");
+        }
+		function sendMessage2() {
+			
+            stompClient.send("/app/chat/"+roomId.toString(), {}, JSON.stringify({'content': $("#message").val(), 'sender' :"고객"}));
+            $("#message").val("");
+        }
+        function showMessage(message) {
+            $("#chat-content").append("<p>" + message + "</p>");
+        }
+
+        $(function () {
+            connect();
+            $("form").on('submit', function (e) {
+                e.preventDefault();
+            });
+        });
+        <!--랜덤 문자열 생성(roomId)-->
+        function generateRandomString() {
+		  const characters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+		  let result = '';
+		
+		  for (let i = 0; i < 8; i++) {
+		    const randomIndex = Math.floor(Math.random() * characters.length);
+		    result += characters.charAt(randomIndex);
+		  }
+		
+		  return result;
+		}
+		$(document).ready(function() {
+	        $('#newRoom').click(function() {
+	            // Ajax 요청을 통해 서버에 데이터 요청
+	           roomId = generateRandomString();
+	           $.ajax({
+	                type: 'POST',
+	                url: '/setRoomsData',
+	                 data: JSON.stringify({ roomId: roomId.toString() }),  // JSON 형태로 데이터 변환
+            		contentType: 'application/json', // 컨텐츠 타입을 지정
+	                success: function(response) {
+	                    alert('상담을 연결 중입니다. 잠시만 기다려 주세요.');
+                	},
+	                error: function() {
+	                    console.error('연결에 실패 했습니다. message queue insert failed');
+	                }
+	            });
+			stompClient.subscribe('/topic/'+roomId.toString(), function (response) {
+                    showMessage(JSON.parse(response.body).sender + ": " + JSON.parse(response.body).content);
+                });
+            $("#chat-content").append("<p> RoomNumber : "+roomId.toString()+"</p>");
+	        });
+	        $('#closeChatButton').click(function () {
+            // Ajax 요청을 통해 채팅 종료 서버에 데이터 요청
+            $.ajax({
+                type: 'DELETE',  // DELETE 메서드 사용
+                url: '/closeConsultation/' + roomId.toString(),  // YOUR_ROOM_ID를 실제 사용하는 방의 ID로 변경
+                success: function (response) {
+                    //alert(response);
+                    // 추가로 처리할 내용이 있으면 여기에 작성
+                    stompClient.send("/app/chat/"+roomId.toString(), {}, JSON.stringify({'content': '상담을 종료 하셨습니다.', 'sender' :"고객"}));
+                    $("#chat-content").empty();
+                },
+                error: function () {
+                    console.error('Error closing consultation.');
+                }
+            });
+        });
+    	});
+    </script>
+</body>
+</html>

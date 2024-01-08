@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>상담사 화면</title>
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+</head>
+<body>
+	<button type="button" id="getDataButton">상담 받기</button>
+	<div id = "room-id"></div>
+    <div id="chat-content"></div>
+    <form id="messageform" th:object="${messageForm}">
+		<div id="result"></div>
+		<input type="text" id="message" placeholder="Type your message..." th:field="*{content}">
+        <button type="button" onclick="sendMessage()">Send</button>
+        <!--<button type="button" onclick="sendMessage2()">send2</button>-->
+    </form>
+	
+    <script>
+		var roomId1;
+		$(function () {
+            $("form").on('submit', function (e) {
+                e.preventDefault();
+            });
+        });
+        function setConnected(connected) {
+            if (connected) {
+                $("#chat-content").append("<p>Connected</p>");
+            } else {
+                $("#chat-content").append("<p>Disconnected</p>");
+            }
+        }
+
+        function connect() {
+            var socket = new SockJS('/websocket-chat');
+            stompClient = Stomp.over(socket);
+			
+            stompClient.connect({}, function (frame) {
+                stompClient.subscribe('/topic/'+roomId1.toString(), function (response) {
+                    showMessage(JSON.parse(response.body).sender + ": " + JSON.parse(response.body).content);
+                });
+                $("#room-id").append("<p>roomId :"+roomId1.toString()+"</p>");
+            	stompClient.send("/app/chat/"+roomId1.toString(), {}, JSON.stringify({'content': '상담이 시작 되었습니다.','sender': '상담사'}));
+            });
+        }
+		function getRoom(){
+			roomId = $('#result').val();
+			stompClient.subscribe('/topic/'+roomId.toString(), function (response) {
+                    showMessage(JSON.parse(response.body).sender + ": " + JSON.parse(response.body).content);
+                });
+		}
+        function disconnect() {
+            if (stompClient !== null) {
+                stompClient.disconnect();
+            }
+            setConnected(false);
+        }
+
+        function sendMessage() {
+            stompClient.send("/app/chat/"+roomId1.toString(), {}, JSON.stringify({'content': $("#message").val(),'sender': '상담사'}));
+            $("#message").val("");
+        }
+        function showMessage(message) {
+            $("#chat-content").append("<p>" + message + "</p>");
+        }
+
+        
+		$(document).ready(function() {
+	        $('#getDataButton').click(function() {
+				$("#room-id").empty();
+				$("#chat-content").empty();
+	            // Ajax 요청을 통해 서버에 데이터 요청
+	            $.ajax({
+	                type: 'GET',
+	                url: '/getRoomsData',
+	                success: function(data) {
+						var roomValue = data;
+	                    roomId1 = roomValue;
+	                    connect();
+	                },
+	                error: function() {
+	                    console.error('Error getting data from Redis.');
+	                }
+	            });
+	        });
+    	});
+    </script>
+</body>
+</html>
